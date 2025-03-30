@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"pset02/block"
 	"sort"
 	"strings"
 	"sync"
@@ -22,8 +23,8 @@ var (
 // The chain itself only exists in a file.
 type BlockChain struct {
 	mtx   sync.Mutex
-	tip   Block
-	bchan chan Block
+	tip   block.Block
+	bchan chan block.Block
 }
 
 func Server() error {
@@ -37,12 +38,12 @@ func Server() error {
 	var bc BlockChain
 
 	// initialize channel
-	bc.bchan = make(chan Block, 8)
+	bc.bchan = make(chan block.Block, 8)
 
 	// Ignore errors here; it's hard-coded
 	// this is kindof ugly as it doesn't show up anywhere so it's like height
 	// negative 1.  Weird but whatever.
-	bc.tip, _ = BlockFromString(genesisBlock)
+	bc.tip, _ = block.BlockFromString(genesisBlock)
 
 	// start handler routine for accepting new blocks from clients
 	go HandleBlockSubmission(&bc)
@@ -168,7 +169,7 @@ func LoadChain(bc *BlockChain) error {
 		if err != nil {
 			return err
 		}
-		newBl, err := BlockFromString(string(blockLine))
+		newBl, err := block.BlockFromString(string(blockLine))
 		if err != nil {
 			return err
 		}
@@ -214,7 +215,7 @@ func HandleServerConnection(connection net.Conn, bc *BlockChain) {
 		sendBytes = []byte(fmt.Sprintf("%s\n", sendString))
 	} else {
 		// interpret as block submission
-		newBl, err := BlockFromString(string(blockLine))
+		newBl, err := block.BlockFromString(string(blockLine))
 		if err != nil {
 			// neither TRQ nor block, send error message
 			sendBytes = []byte(fmt.Sprintf(
@@ -249,7 +250,7 @@ func HandleServerConnection(connection net.Conn, bc *BlockChain) {
 // HandleBlockSubmission checks that the block is OK and fits on the end of the
 // chain, then adds it on at the end.
 func HandleBlockSubmission(bc *BlockChain) {
-	var blockHistory []Block
+	var blockHistory []block.Block
 
 	// loop forever
 	for {
@@ -292,9 +293,9 @@ func HandleBlockSubmission(bc *BlockChain) {
 
 // CheckNextBlock checks if the block attaches, has work, etc.
 // Assumes "prev" block is OK, but checks "next"
-func CheckNextBlock(prev, next Block) bool {
+func CheckNextBlock(prev, next block.Block) bool {
 	// first check the work on the new block.  33 bits needed.
-	if !CheckWork(next, 33) {
+	if !CheckWork(next, 4) {
 		log.Printf("not enought work! ")
 		return false
 	}
@@ -311,7 +312,7 @@ func CheckNextBlock(prev, next Block) bool {
 }
 
 // CheckWork checks if there's enough work
-func CheckWork(bl Block, targetBits uint8) bool {
+func CheckWork(bl block.Block, targetBits uint8) bool {
 	h := bl.Hash()
 
 	for i := uint8(0); i < targetBits; i++ {
@@ -324,4 +325,11 @@ func CheckWork(bl Block, targetBits uint8) bool {
 		}
 	}
 	return true
+}
+
+func main() {
+	err := Server()
+	if err != nil {
+		log.Fatalf("lol Server Error: %s \n", err)
+	}
 }

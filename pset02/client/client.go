@@ -1,17 +1,18 @@
-package main
+package client
 
 import (
 	"bufio"
 	"fmt"
 	"net"
+	"pset02/block"
 )
 
 var (
 	// note that this server is not up yet!  Will be soon!
-	serverHostname = "hubris.media.mit.edu:6262"
+	//serverHostname = "hubris.media.mit.edu:6262"
 
 	// uncomment for testing & running a server on localhost
-	//	serverHostname = "127.0.0.1:6262"
+	serverHostname = "127.0.0.1:6262"
 )
 
 // The functions in this file are provided to give connectivity to the
@@ -23,8 +24,8 @@ var (
 // GetTipFromServer connects to the server and gets the tip of the blockchain.
 // Can return an error if the connection doesn't work or the server is sending
 // invalid data that doesn't look like a block.
-func GetTipFromServer() (Block, error) {
-	var bl Block
+func GetTipFromServer() (block.Block, error) {
+	var bl block.Block
 
 	connection, err := net.Dial("tcp", serverHostname)
 	if err != nil {
@@ -53,7 +54,7 @@ func GetTipFromServer() (Block, error) {
 	fmt.Printf("read from server:\n%s\n", string(blockLine))
 
 	// convert to block
-	bl, err = BlockFromString(string(blockLine))
+	bl, err = block.BlockFromString(string(blockLine))
 	if err != nil {
 		return bl, err
 	}
@@ -66,7 +67,7 @@ func GetTipFromServer() (Block, error) {
 // SendBlockToServer connects to the server and sends a block.  The server won't
 // respond at all! :(  But you can check for the tip by connecting again to see
 // if the server updated it's blockchain
-func SendBlockToServer(bl Block) error {
+func SendBlockToServer(bl block.Block) error {
 	connection, err := net.Dial("tcp", serverHostname)
 	if err != nil {
 		return err

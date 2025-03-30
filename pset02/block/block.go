@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // A hash is a sha256 hash, as in pset01
@@ -70,19 +71,62 @@ func BlockFromString(s string) (Block, error) {
 	return bl, nil
 }
 
-func (self *Block) Mine(targetBits uint8) {
-
+func FindBlock(targetBits uint8, firstNonce int, fitted_block chan<- Block) {
+	var block Block
 	var hash Hash
 	target := strings.Repeat("0", int(targetBits))
 	nonce := 0
-
+	first := fmt.Sprintf("%d", firstNonce)
 	for {
-		self.Nonce = fmt.Sprintf("%d", nonce)
-		hash = self.Hash()
+		block.Nonce = first + fmt.Sprintf("%d", nonce)
+
+		hash = block.Hash()
 
 		if strings.HasPrefix(hash.ToString(), target) {
+			fitted_block <- block
 			break
 		}
 		nonce++
+		if nonce%1000000 == 0 {
+			fmt.Println("Tries: ", block.Nonce, first)
+		}
+	}
+}
+
+func (self *Block) Mine(targetBits uint8) {
+
+	var wg sync.WaitGroup
+	fitted_block := make(chan Block)
+
+	for i := 1; i <= 16; i++ {
+		wg.Add(1)
+		go func(firstNonce int) {
+			defer wg.Done()
+			FindBlock(targetBits, firstNonce, fitted_block)
+		}(i)
+	}
+	select {
+	case result := <-fitted_block:
+		fmt.Println("Found block:", result)
+		return
+	case <-func() chan struct{} {
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		return done
+	}():
+	}
+
+	// Wait for the block to be mined
+	go func() {
+		wg.Wait()
+		close(fitted_block) // Close the channel when done
+	}()
+
+	// Receive and handle the mined block
+	for block := range fitted_block {
+		fmt.Println("Found block:", block)
 	}
 }

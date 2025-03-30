@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -71,29 +72,60 @@ func BlockFromString(s string) (Block, error) {
 	return bl, nil
 }
 
-func FindBlock(targetBits uint8, firstNonce int, fitted_block chan<- Block) {
-	var block Block
+func FindBlockWorker(id int, targetBits uint8, nonce <-chan int32, fitted_block chan<- Block, name string, phash Hash) {
+	b1 := Block{
+		PrevHash: phash,
+		Name:     name,
+	}
 	var hash Hash
 	target := strings.Repeat("0", int(targetBits))
-	nonce := 0
-	first := fmt.Sprintf("%d", firstNonce)
-	for {
-		block.Nonce = first + fmt.Sprintf("%d", nonce)
+	for n := range nonce {
+		for i := n - 10000000; i < n; i++ {
+			b1.Nonce = fmt.Sprintf("%d", i)
 
-		hash = block.Hash()
+			hash = b1.Hash()
 
-		if strings.HasPrefix(hash.ToString(), target) {
-			fitted_block <- block
-			break
-		}
-		nonce++
-		if nonce%1000000 == 0 {
-			fmt.Println("Tries: ", block.Nonce, first)
+			if strings.HasPrefix(hash.ToString(), target) {
+				fitted_block <- b1
+				break
+			}
+			if i%1000000 == 0 {
+				fmt.Println("Tries: ", b1.Nonce, "ID: ", id)
+			}
 		}
 	}
 }
 
-func (self *Block) Mine(targetBits uint8) {
+func (self *Block) Mine(targetBits uint8) Block {
+	const numbWorkers = 10
+	const buffersize = 5
+	nonce := make(chan int32, buffersize)
+	block := make(chan Block)
+
+	runtime.GOMAXPROCS(numbWorkers) // Allow Go to use multiple CPU cores
+
+	for w := 1; w <= numbWorkers; w++ {
+		go FindBlockWorker(w, targetBits, nonce, block, self.Name, self.PrevHash)
+	}
+
+	go func() {
+		var n int32 = 1
+		for {
+			nonce <- n
+			n = n + 10000000
+		}
+	}()
+
+	select {
+	case b := <-block:
+		close(block)
+		fmt.Println(b.ToString())
+		return b
+	}
+
+}
+
+func (self *Block) Mine_old(targetBits uint8) {
 
 	var wg sync.WaitGroup
 	fitted_block := make(chan Block)
@@ -102,7 +134,7 @@ func (self *Block) Mine(targetBits uint8) {
 		wg.Add(1)
 		go func(firstNonce int) {
 			defer wg.Done()
-			FindBlock(targetBits, firstNonce, fitted_block)
+			//FindBlock(targetBits, firstNonce, fitted_block)
 		}(i)
 	}
 	select {

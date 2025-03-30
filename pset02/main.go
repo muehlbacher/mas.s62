@@ -19,7 +19,8 @@ func main() {
 		PrevHash: first_block.Hash(), Name: "Dominik", Nonce: "lol",
 	}
 	// Your code here!
-	block1.Mine(10)
+	block1 = block1.Mine(10)
+
 	client.SendBlockToServer(block1)
 
 	// Basic idea:
